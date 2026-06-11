@@ -25,6 +25,18 @@ Next-session non-negotiables:
 | Store calibration per printer and layout | Printer drift and stock geometry are layout-specific |
 | Defer ETQ import until native save/print works | ETQ compatibility is useful, but not the product foundation |
 
+Technology decision:
+
+| Area | Choice | Reason |
+|---|---|---|
+| Application platform | C# / .NET Windows desktop | Native Windows APIs, mature printer access, maintainable desktop tooling |
+| Editor UI | WPF | Strong native canvas, transforms, property panels, document UI, and DPI-aware desktop behavior |
+| Production print renderer | GDI+ / Win32 print path | Precise printer HDC control, WMF playback, mm-to-device-unit transforms, calibration output |
+| Preview/editor renderer | WPF renderer backed by the same document/layout model | Good interactive editing while preserving shared geometry rules |
+| Existing Go code | Research/reference only | Parser and print discoveries are useful, but Go UI/printing is not the product foundation |
+
+Do not build this as a web-based desktop app. Electron, Wails, browser canvas, and TypeScript-first desktop stacks are a poor fit for millimeter-accurate Windows printing, WMF rendering, and printer-driver calibration.
+
 | Goal | Requirement |
 |---|---|
 | Paper compatibility | Load/support all Paulimaq paper catalogs (`*.inf`), including LNT sheets, tags, rolls, jewelry, shoes, cards, invites, CDs, plants, and bands |
@@ -378,7 +390,36 @@ Recommended split:
 | `print` | Windows printer backend, calibration, preview/export |
 | `import_etq` | Optional ETQ importer from research repo |
 
-Start with Go if reusing the existing parser/Win32 print work. Keep the engine independent from UI so a later WPF/Qt frontend can replace the canvas if needed.
+Use C#/.NET as the implementation language. Use WPF for the interactive editor and shell, but do not use "print the WPF visual" as the production print path. Production print must render from the document model into a GDI+/Win32 printer graphics context using explicit millimeter geometry.
+
+Rendering architecture:
+
+```text
+Native document model
+  -> catalog/layout/cell transform engine
+    -> WPF preview/editor renderer
+    -> GDI+/Win32 production print renderer
+```
+
+Rules:
+
+| Rule | Reason |
+|---|---|
+| Keep layout math outside WPF controls | Preview and print must share geometry, not duplicated UI logic |
+| Use WPF for interaction, not as the print authority | WPF visual printing can introduce DPI/scaling surprises |
+| Use GDI+/Win32 for final output | Direct printer HDC control is better for calibration and WMF replay |
+| Keep renderer adapters thin | All object positions and transforms must come from the shared model |
+| Treat Go code as reference | Reuse algorithms/findings, not the old app architecture |
+
+Stacks to avoid:
+
+| Stack | Reason |
+|---|---|
+| Electron / TypeScript desktop | Browser print pipeline is imprecise; WMF and text metrics are awkward |
+| Go + Wails | Same browser print/WMF issues plus bridge complexity |
+| Go native desktop UI | Weak canvas/editor ecosystem for this type of app |
+| Avalonia | Cross-platform tradeoffs are not useful here; Windows-native printing/WMF matter more |
+| Qt | Powerful, but heavier and less natural for Windows WMF/print integration than .NET |
 
 ## Critical Tests
 
@@ -431,18 +472,20 @@ Do not require exact CadMapa placement in MVP
 
 ## First Week Implementation Plan
 
-1. Create new repo `masterprint-label-studio`.
-2. Copy Paulimaq-derived layout catalog and original WMF symbols into app assets.
-3. Implement a generic Paulimaq INF catalog loader using `layout.ini` schemas.
-4. Add tests that load every installed `*.inf` catalog and expose all layout IDs/categories.
-5. Implement LNT-2 as the first calibrated sheet layout using the generic catalog data.
-6. Implement native document model and JSON save/load.
-7. Implement canvas with text and symbol objects in the selected layout's design coordinates.
-8. Implement print preview using the same cell transform as printer output.
-9. Print LNT-2 calibration page to HP and adjust offsets.
-10. Print a simple repeated template to all 40 LNT-2 slots.
-11. Add calibration-page support for every sheet-type INF layout.
-12. Only after this passes, add ETQ import.
+1. Create new repo `masterprint-label-studio` as a C#/.NET WPF application.
+2. Create separate projects/namespaces for core model/catalog/layout logic and WPF UI.
+3. Copy Paulimaq-derived layout catalog and original WMF symbols into app assets.
+4. Implement a generic Paulimaq INF catalog loader using `layout.ini` schemas.
+5. Add tests that load every installed `*.inf` catalog and expose all layout IDs/categories.
+6. Implement LNT-2 as the first calibrated sheet layout using the generic catalog data.
+7. Implement native document model and JSON save/load.
+8. Implement a minimal WPF canvas with text and symbol objects in the selected layout's design coordinates.
+9. Implement a GDI+/Win32 production print renderer using the same cell transform engine as preview.
+10. Implement WPF preview from the same shared document/layout model.
+11. Print LNT-2 calibration page to HP and adjust offsets.
+12. Print a simple repeated template to all 40 LNT-2 slots.
+13. Add calibration-page support for every sheet-type INF layout.
+14. Only after this passes, add ETQ import.
 
 Week-one priority order:
 
@@ -450,7 +493,7 @@ Week-one priority order:
 engine > catalog > calibration > minimal canvas > native save/load > ETQ import
 ```
 
-Do not spend week one on toolbar chrome, CadMapa UI parity, database screens, or ETQ writing.
+Do not spend week one on toolbar chrome, CadMapa UI parity, database screens, ETQ writing, Electron/Wails experiments, or browser-canvas prototypes.
 
 ## Reserved Handoff Bundle
 
