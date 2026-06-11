@@ -12,6 +12,19 @@ Use the old project only as research: Paulimaq layout files, original WMF symbol
 
 Create a reliable Windows program for Paulimaq-style labels across all supported paper/template categories. LNT-2 is the first proof target because it is the current production pain point, not because the product is limited to LNT-2.
 
+Next-session non-negotiables:
+
+| Rule | Why |
+|---|---|
+| Start with the engine, not UI polish | The first win is correct catalog/cell/print behavior, not visual chrome |
+| Load all Paulimaq catalogs early | The product must not become LNT-2-only |
+| Mark paper types production-ready one at a time | Loading a layout is not the same as calibrated real-paper output |
+| Prove LNT-2 on real paper first | LNT-2 40 slots on A4 portrait is the first truth gate |
+| Keep `pageOrientation` and `contentOrientation` separate | Paulimaq `Paisa` is not enough to model page vs per-cell rotation safely |
+| Use original WMF symbols from day one | Textile care symbols are compliance-sensitive and must not be casually redrawn |
+| Store calibration per printer and layout | Printer drift and stock geometry are layout-specific |
+| Defer ETQ import until native save/print works | ETQ compatibility is useful, but not the product foundation |
+
 | Goal | Requirement |
 |---|---|
 | Paper compatibility | Load/support all Paulimaq paper catalogs (`*.inf`), including LNT sheets, tags, rolls, jewelry, shoes, cards, invites, CDs, plants, and bands |
@@ -77,6 +90,15 @@ MVP validates LNT-2 on real paper.
 Catalog engine supports all INF-defined layouts from day one.
 Each new physical paper type gets its own calibration gate before being marked production-ready.
 ```
+
+Catalog support states:
+
+| State | Meaning |
+|---|---|
+| Loaded | INF record parsed, visible in picker, metadata preserved |
+| Previewable | Sheet/roll geometry can be drawn in preview without fake defaults |
+| Calibrated | A numbered calibration page/segment was printed and adjusted for one printer |
+| Production-ready | Real stock was printed acceptably for that layout category |
 
 Do not build an LNT-only data model. A paper layout must be a generic object:
 
@@ -188,17 +210,28 @@ Recommended transform fields:
 
 ```json
 {
+  "pageOrientation": "portrait",
+  "contentOrientation": "cw90",
   "physicalWidthMM": 25.0,
   "physicalHeightMM": 55.5,
   "designWidthMM": 55.5,
   "designHeightMM": 25.0,
-  "rotation": "cw90",
   "offsetXMM": 0.0,
   "offsetYMM": 0.0,
   "scaleX": 1.0,
   "scaleY": 1.0
 }
 ```
+
+Orientation rules:
+
+| Field | Meaning |
+|---|---|
+| `pageOrientation` | Printer/page setup: portrait or landscape A4/job orientation |
+| `contentOrientation` | Transform inside each physical slot: none, cw90, ccw90, rotate180 |
+| `Paisa` from INF | Input hint only; map it into explicit page/content orientation after calibration |
+
+Never collapse these into one boolean. LNT-2 is A4 portrait physical paper with rotated content in each slot.
 
 Printer calibration must be a first-class feature:
 
@@ -208,6 +241,14 @@ Printer calibration must be a first-class feature:
 | Scale X/Y | Correct driver scaling if needed |
 | Rotation direction | Confirm how the stock must be fed and read |
 | Test page | Print cell numbers 1..40, border, axes, and ruler ticks |
+
+Calibration storage key:
+
+```text
+printerName + layoutId + pageOrientation + contentOrientation
+```
+
+Do not use one global calibration for every paper type.
 
 ## Symbol Library
 
@@ -402,6 +443,14 @@ Do not require exact CadMapa placement in MVP
 10. Print a simple repeated template to all 40 LNT-2 slots.
 11. Add calibration-page support for every sheet-type INF layout.
 12. Only after this passes, add ETQ import.
+
+Week-one priority order:
+
+```text
+engine > catalog > calibration > minimal canvas > native save/load > ETQ import
+```
+
+Do not spend week one on toolbar chrome, CadMapa UI parity, database screens, or ETQ writing.
 
 ## Reserved Handoff Bundle
 
