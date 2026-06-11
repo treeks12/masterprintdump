@@ -1,0 +1,9 @@
+build/
+debug.log
+debug_records.go
+terminals/
+agent-tools/
+__pycache__/
+tools/__pycache__/
+*.tmp
+*.bak
