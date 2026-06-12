@@ -59,6 +59,7 @@ Do not build this as a web-based desktop app. Electron, Wails, browser canvas, a
 | Original symbols | `CLIPART\Símbolos\*.wmf` | ABNT/ISO care symbols |
 | Corpus | `ARQUIVOS\*.ETQ` | Optional ETQ import tests |
 | Current research repo | `C:\Users\HB\Projects\masterprint-native` | Parser/tests/reverse findings |
+| ETQ report | `docs\etq-format-report.md` | Detailed read-only ETQ import structure, confidence levels, edge cases, and C# porting notes |
 | Web research | LNT sellers and textile-label references | Confirms commercial LNT sizes and ABNT/ISO 3758 requirement |
 
 ABNT/Inmetro research notes:
@@ -94,6 +95,30 @@ Installed catalog examples from `C:\Program Files (x86)\paulimaq`:
 | `fixbands.inf` | Wristband/band formats |
 | `plantas.inf` | Plant labels |
 | `photoA4.inf`, `ncd.inf`, `etred.inf`, `minicd.inf`, `pcd.inf` | Photo/CD/card related formats |
+
+Reference image:
+
+```text
+C:\Users\HB\Projects\masterprint-new-handoff\test\exemplos do que o masterprint faz.jpg
+```
+
+This image is a visual collage of MasterPrint's page-configuration dialogs. It confirms the user-facing category breadth and typical page setup fields, but it must not override `layout.ini`/`*.inf` numeric parsing.
+
+The size/margin/spacing fields in this dialog are editable in MasterPrint. Treat INF values as catalog defaults, not necessarily the final saved document values. The native document format should support optional per-document layout overrides for width, height, margins, columns, and spacing once ETQ storage for those overrides is identified.
+
+Visible categories include:
+
+| Category shown in MasterPrint UI | Notes |
+|---|---|
+| `Etiq. para Composições em Folhas` | LNT-0/1/2/3/4, SONTARA, Nylon ECNY sheet labels |
+| `Etiq. para Composições em Formulários` | NT/TY/NY form labels with column variants |
+| `Etiq. para Composições em Rolo` | TYB/NYR roll labels, feed spacing visible |
+| `Caixa de Cartões - PRINT BOX` | box/card package layout |
+| `Cartões de Visita - PRINT CARD` | vertical/horizontal/plus business card layouts |
+| `Etiq. para Caixas de Calçados` | shoe-box labels such as `CS0210 / LJA 272` and `FACS` |
+| Other dropdown categories | CD labels, fast labels, bands, invites, jewelry, Pauli-Tab |
+
+The image reinforces the catalog rule: support all INF-defined layouts generically, then mark individual physical stocks production-ready only after calibration.
 
 Product rule:
 
@@ -502,12 +527,16 @@ The next session should start from the handoff folder created from this plan. Ex
 ```text
 masterprint-new-handoff/
   docs/new-label-canvas-printer-plan.md
+  docs/etq-format-report.md
   paulimaq/layout.ini
   paulimaq/inf/*.inf
   paulimaq/etiqueta.inf
   paulimaq/pageovrr.ini
   paulimaq/symbols/*.wmf
   samples/*.ETQ
+  test/lnt*.ETQ
+  test/lnt*.jpg
+  test/exemplos do que o masterprint faz.jpg
   research/masterprint-replica-plan.md
 ```
 
