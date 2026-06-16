@@ -60,6 +60,8 @@ Do not build this as a web-based desktop app. Electron, Wails, browser canvas, a
 | Corpus | `ARQUIVOS\*.ETQ` | Optional ETQ import tests |
 | Current research repo | `C:\Users\HB\Projects\masterprint-native` | Parser/tests/reverse findings |
 | ETQ report | `docs\etq-format-report.md` | Detailed read-only ETQ import structure, confidence levels, edge cases, and C# porting notes |
+| Legacy feature inventory | `docs\masterprint-cadmapa-feature-inventory.md` | Old MasterPrint/CadMapa feature checklist for support and migration scoping |
+| MasterPrint story/function map | `docs\masterprint-software-story-and-functions.md` | Narrative of what the old software was plus UI/reverse function explanations |
 | Web research | LNT sellers and textile-label references | Confirms commercial LNT sizes and ABNT/ISO 3758 requirement |
 
 ABNT/Inmetro research notes:
@@ -398,6 +400,17 @@ Preferred extension: `.mpLabel` or `.mpt`.
 | ETQ read-only import | Import text and symbols from common LNT-2 ETQs into native format |
 | Symbol hash matching | Embedded ETQ WMFs map to original symbol IDs |
 | Legacy template starter | Convert `LNT-2.ETM`/ETQ samples to native templates if safe |
+
+Photo/logo/raster/OLE objects inside `.ETQ` are not covered by the current parser proof. Reverse evidence points to separate OLE/DIB object paths, including `BDOC` OLE payloads and bitmap/DIB rendering, but no available corpus file contains a controlled photo/logo example. Treat these as unsupported in MVP until controlled `.ETQ` samples exist.
+
+Required future samples for raster/OLE import:
+
+```text
+figure-bmp-lnt2.ETQ + original BMP + screenshot
+ole-bmp-lnt2.ETQ + original BMP + screenshot
+figure-wmf-lnt2.ETQ + original WMF + screenshot
+photo-jpg-lnt2.ETQ + original JPG + screenshot, if MasterPrint accepts JPG
+```
 
 ETQ writing is explicitly not required.
 

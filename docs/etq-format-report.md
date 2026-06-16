@@ -668,6 +668,204 @@ Recommended importer ordering:
 
 Do not deduplicate objects by text, symbol name, geometry, or chain key.
 
+## Photo, Logo, Raster, and OLE Objects
+
+Current status: not implemented and not proven by samples.
+
+The existing parser supports text records and embedded WMF care-symbol records. It does not support raster photos, logos, generic `Figura` objects, or embedded OLE objects.
+
+Corpus scan result:
+
+```text
+Current handoff ETQs and installed ARQUIVOS ETQs were byte-scanned for:
+- BDOC
+- OLE compound-file signature D0 CF 11 E0 A1 B1 1A E1
+- BMP file marker BM
+- JPEG marker FF D8 FF
+- PNG signature 89 50 4E 47 0D 0A 1A 0A
+
+No matches were found in the available corpus.
+```
+
+This means the current files do not contain a known photo/logo/OLE example. Reverse evidence identifies likely code paths, but there is no byte-level ETQ sample yet to validate object envelope, placement, and payload extraction.
+
+### UI Evidence
+
+`TLAYOUTDESKTOP_decoded.txt` shows separate toolbar object modes:
+
+| Toolbar item | Hint | Meaning |
+|---|---|---|
+| `btnImage` | `Figura` | Figure/image mode |
+| `btnMapaRisc` | `Figura` | Another figure/map-risk mode |
+| `btnFileMan` | `Figura` | File-managed figure mode |
+| `btnOle` | `Ole` | Generic OLE object mode |
+| `btnWordArt` | `Ole` | Hidden WordArt/OLE mode |
+| `btnTable` | `Ole` | Hidden table/OLE mode |
+
+This confirms that MasterPrint/CadMapa distinguishes care-symbol WMF insertion from more general image/OLE objects.
+
+### Reverse Evidence: Object Type Map
+
+CadMapa stores an object type byte at runtime offset `+0x189` in the high-level graphical object. Function `FUN_004ba3e0` constructs object handlers by type.
+
+Relevant cases:
+
+| Type | Constructor path | Current interpretation |
+|---:|---|---|
+| `6` | `FUN_004bd71c` | Bitmap/DIB-style figure path |
+| `9` | `FUN_004c066c` | OLE-backed figure/image wrapper |
+| `10` | `FUN_004bb77c(...PTR_PTR_004bb254...)` | Another figure/file-managed path, not decoded |
+| `4`, `5`, `0xb` | `FUN_004bf068` | Text/artistic text style paths, not photo/logo |
+
+Creation/loading also reaches type `9` in `FUN_004b5d8c`:
+
+```text
+case 9:
+  objectType = 9
+  handler = FUN_004c066c(...)
+```
+
+The save/apply path reaches type `9` in `FUN_004c3a4c`:
+
+```text
+case 9:
+  FUN_004c0748(piVar6[99], *(param_1 + 0x4ec), ...)
+```
+
+`FUN_004c0748` then calls:
+
+```text
+FUN_0049bdac(param_2, stream)   // serialize OLE/figure payload into stream
+FUN_0049b7f8(target, stream)    // reload/attach payload
+```
+
+### Reverse Evidence: OLE Payload Serialization
+
+Function `FUN_0049bdac` is the clearest save-side evidence for OLE-backed objects.
+
+Observed behavior:
+
+```text
+if object dirty:
+  OleSave(IPersistStorage, IStorage, TRUE)
+  SaveCompleted(...)
+
+if normal mode:
+  hglobal = GetHGlobalFromILockBytes(object + 0x1fc)
+else special mode:
+  copy current IStorage into new ILockBytes
+  hglobal = GetHGlobalFromILockBytes(new ILockBytes)
+
+write 12-byte header
+write hglobal bytes
+```
+
+Normal 12-byte header written by `FUN_0049bdac`:
+
+| Offset | Size | Meaning |
+|---:|---:|---|
+| `+0` | 4 | signature `BDOC`, bytes `42 44 4F 43`, from little-endian `0x434F4442` |
+| `+4` | 4 | OLE draw aspect, copied from runtime field `+0x208` |
+| `+8` | 4 | payload byte size, `GlobalSize(hglobal)` |
+| `+12` | variable | OLE compound-storage bytes from `HGLOBAL` |
+
+The corresponding load-side function `FUN_0049b7f8` reads 12 bytes and rejects the record if the first dword is not `BDOC`, unless a special graphical mode flag at runtime offset `+0x23e` is set.
+
+Important uncertainty: this describes the inner OLE payload stream, not the complete surrounding ETQ object envelope. A real sample is needed to locate the outer `FE` record, geometry fields, object type byte, and payload length in actual `.ETQ` bytes.
+
+### Reverse Evidence: OLE Object Creation and Rendering
+
+Function `FUN_0049ac24` creates OLE objects using standard Windows OLE APIs:
+
+| Case | API |
+|---:|---|
+| `0` | `OleCreate` |
+| `1` | `OleCreateFromFile` |
+| `2` | `OleCreateLinkToFile` |
+| `3` | `OleCreateFromData` |
+| `4` | `OleCreateLinkFromData` |
+
+This means imported logos/photos may not be stored as simple PNG/JPEG/BMP bytes. They may be embedded in an OLE compound storage wrapper created by Windows, depending on how MasterPrint inserted the file.
+
+Function `FUN_0049ba34` renders the OLE object with:
+
+```text
+OleDraw(object + 0x204, aspect at object + 0x208, hdc, rect)
+```
+
+It also uses runtime field `+0x23f` to decide how to fit/center/stretch/icon-render the object inside the rectangle. Exact semantics need a real sample and UI testing.
+
+### Reverse Evidence: Bitmap/DIB Rendering Path
+
+There is also a non-OLE bitmap/DIB path:
+
+| Function | Evidence |
+|---|---|
+| `FUN_004bd71c` | constructs type `6` object and allocates bitmap-related state |
+| `FUN_004bde2c` | render path that branches on internal image mode and can call `FUN_004bd3c0` |
+| `FUN_004bd3c0` | renders bitmap data via `GetDIBits` and `StretchDIBits` |
+| `FUN_004261c4` | loads BMP stream with file marker `BM` (`0x4D42`) |
+| `FUN_0048ba50` | writes BMP file header `BM` and bitmap bits |
+
+This path may be used for some `Figura` objects, but no available `.ETQ` sample proves how it appears in the ETQ container.
+
+### What a Photo/Logo ETQ Sample Should Contain
+
+To solve this safely, create controlled samples in original MasterPrint/CadMapa.
+
+Minimum sample set:
+
+```text
+photo-bmp-embedded-lnt2.ETQ
+photo-jpg-embedded-lnt2.ETQ
+logo-png-or-bmp-embedded-lnt2.ETQ
+ole-from-file-lnt2.ETQ
+ole-linked-file-lnt2.ETQ
+```
+
+If the original program only accepts `BMP`/`WMF`, then create at least:
+
+```text
+figure-bmp-lnt2.ETQ
+ole-bmp-lnt2.ETQ
+figure-wmf-lnt2.ETQ
+```
+
+For each sample, include:
+
+```text
+original inserted image file
+ETQ file
+MasterPrint screenshot/JPG reference
+notes saying which toolbar/action was used: Figura, Ole, FileMan, MapaRisc, etc.
+whether the file was embedded or linked
+approximate position and size
+```
+
+Recommended simple image content:
+
+```text
+100x60 px BMP with a red square, blue circle, and black text LOGO
+another JPG/photo if accepted by MasterPrint
+```
+
+Keep the image visually distinctive. A distinctive image makes it easier to identify raw bitmap/JPEG/compound-storage bytes inside the ETQ.
+
+### Import Strategy Until Samples Exist
+
+Do not implement photo/logo import as if it is known.
+
+Safe MVP behavior:
+
+| Situation | Behavior |
+|---|---|
+| Parser sees known text/WMF only | Import normally |
+| Parser detects `BDOC`/OLE marker later | Preserve as unsupported `ole-object` with offset and raw bytes until geometry is proven |
+| Parser detects BMP/DIB marker later | Preserve as unsupported `bitmap-object` with offset and raw bytes until object envelope is proven |
+| User imports ETQ with missing photo/logo | Warn clearly that raster/OLE objects are not imported |
+
+Do not attempt to extract images by scanning for random `BM`, JPEG, or PNG signatures and placing them on the canvas. Without the outer object geometry and mode fields, that would create false confidence and wrong output.
+
 ## Corpus Baseline
 
 The old parser has a baseline for 58 installed `.ETQ` files under:

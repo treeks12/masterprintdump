@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"os"
@@ -40,6 +41,7 @@ func main() {
 	}
 	sort.Strings(files)
 	for _, path := range files {
+		data, readErr := os.ReadFile(path)
 		doc, err := etq.ParseETQ(path)
 		if err != nil {
 			fmt.Printf("FILE %s\nERROR %v\n\n", filepath.Base(path), err)
@@ -62,6 +64,49 @@ func main() {
 		for _, u := range doc.UnknownObjects {
 			fmt.Printf("  UNKNOWN off=%#x flags=%#x tag=%#x kind=%s\n", u.Offset, u.Flags, u.Tag, u.Kind)
 		}
+		if readErr == nil {
+			for _, hit := range scanBinarySignatures(data) {
+				fmt.Printf("  SIGNATURE %s count=%d first=%#x\n", hit.name, hit.count, hit.first)
+			}
+		}
 		fmt.Println()
 	}
+}
+
+type signatureHit struct {
+	name  string
+	count int
+	first int
+}
+
+func scanBinarySignatures(data []byte) []signatureHit {
+	signatures := []struct {
+		name string
+		pat  []byte
+	}{
+		{name: "BDOC_OLE_PAYLOAD_HEADER", pat: []byte{'B', 'D', 'O', 'C'}},
+		{name: "OLE_COMPOUND_STORAGE", pat: []byte{0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1}},
+		{name: "BMP_FILE", pat: []byte{'B', 'M'}},
+		{name: "JPEG", pat: []byte{0xff, 0xd8, 0xff}},
+		{name: "PNG", pat: []byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a}},
+	}
+
+	var hits []signatureHit
+	for _, sig := range signatures {
+		first := bytes.Index(data, sig.pat)
+		if first < 0 {
+			continue
+		}
+		count := 0
+		for off := first; off >= 0 && off < len(data); {
+			count++
+			next := bytes.Index(data[off+1:], sig.pat)
+			if next < 0 {
+				break
+			}
+			off += 1 + next
+		}
+		hits = append(hits, signatureHit{name: sig.name, count: count, first: first})
+	}
+	return hits
 }
