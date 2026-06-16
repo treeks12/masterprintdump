@@ -26,6 +26,7 @@ Primary evidence:
 | CadMapa reverse source archive | `C:\Users\HB\Projects\paulimaq-reverse\cadmapa-decompiled` |
 | ETQ reverse report | `docs\etq-format-report.md` |
 | Legacy feature inventory | `docs\masterprint-cadmapa-feature-inventory.md` |
+| Barcode reverse report | `docs\masterprint-barcode-research.md` |
 | New app plan | `docs\new-label-canvas-printer-plan.md` |
 
 ## Short Story Of The Software
@@ -242,7 +243,7 @@ Most drawing tool buttons are wired to the same handler, `WDSpeedButton2Click`. 
 | Simple text | `Texto Simples` | Plain text object | Core |
 | Text box | `Caixa de Texto` | Boxed/multiline text | Core/later depending on first implementation |
 | Artistic text | `Texto Artístico` | Special text/metafile mode | Deferred |
-| Barcode | `Código de Barras` | Barcode object | Deferred, sample needed |
+| Barcode | `Código de Barras` | Runtime type-7 barcode object using `bc_*` drawing library | Native support later; ETQ import blocked by missing barcode sample |
 | Image | `Figura` via `btnImage` | Bitmap/figure object | Deferred, sample needed |
 | Mapa Risco | `Figura` via `btnMapaRisc` | Domain-specific figure/object | Deferred, sample needed |
 | OLE | `Ole` via `btnOle` | Embedded/linked OLE object | Unsupported initially |
@@ -251,6 +252,35 @@ Most drawing tool buttons are wired to the same handler, `WDSpeedButton2Click`. 
 | Table | `Ole`, hidden | Table OLE object | Ignore initially |
 
 This toolbar is the best evidence that CadMapa was a mini desktop-publishing engine, not a simple fixed label form.
+
+## Barcode Function Map
+
+Barcode is a confirmed legacy object family, not just a toolbar placeholder. The full deep dive is in `docs\masterprint-barcode-research.md`.
+
+Known barcode chain:
+
+| Function | Practical explanation |
+|---|---|
+| `btnBarcode` / `Código de Barras` | User-facing drawing toolbar mode for barcode insertion |
+| `FUN_004b5d8c` | Creates object type `7`, constructs barcode handler, and seeds it with an initial code string |
+| `FUN_004ba3e0` | Generic runtime handler switch; case `7` creates barcode handler `FUN_004befdc` |
+| `FUN_004befdc` | Initializes barcode defaults such as likely height percent, rotation/orientation, and size/module scale |
+| `FUN_004bea88` | Applies barcode code text, type index, rotation/orientation, and helper state |
+| `FUN_004b3664` | Creates low-level barcode runtime helper and calls `bc_CreateBarCode` |
+| `FUN_004b3830` | Renders barcode by calling `bc_HeightPercent`, `bc_Type`, `bc_Rotate`, `bc_Size`, `bc_Code`, and `bc_Draw` |
+| `FUN_004c3a4c` | Applies barcode properties from the object-properties UI |
+
+Known barcode fields from reverse evidence:
+
+| Field | Meaning |
+|---|---|
+| code/data text | Copied into barcode helper and passed to `bc_Code` |
+| type/symbology index | Selected from a UI selector and mapped through `DAT_0052c908` |
+| orientation/rotation | Four option controls map to values `0..3` and feed `bc_Rotate` |
+| height percent-like value | Default `100`, passed before `bc_HeightPercent` |
+| size/module-scale-like value | Default double `2.0`, passed before `bc_Size` |
+
+Important limit: there is no `.ETQ` file with a barcode object. Runtime behavior is partially understood, but legacy barcode import/export is not. The new app can later implement native barcode creation with a modern .NET barcode renderer, but old barcode ETQ import needs controlled MasterPrint samples first.
 
 ## Database And Merge Functions
 

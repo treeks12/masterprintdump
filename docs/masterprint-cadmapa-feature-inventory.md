@@ -17,6 +17,7 @@ The purpose is to preserve what old users may ask for, identify which legacy fea
 | OLE draw path | `FUN_0049ba34` |
 | Bitmap/DIB-style figure handler | `FUN_004bd71c` |
 | OLE-backed figure/image wrapper | `FUN_004c066c` |
+| Barcode runtime report | `docs\masterprint-barcode-research.md` |
 | ETQ object parser/import research | `docs\etq-format-report.md` |
 | New product plan | `docs\new-label-canvas-printer-plan.md` |
 
@@ -131,7 +132,7 @@ The `Manipulação de Objetos` toolbar is the clearest user-facing list of objec
 | Simple text | `Texto Simples` | Core |
 | Text box | `Caixa de Texto` | Core/later depending on multiline behavior |
 | Artistic text | `Texto Artístico` | Deferred |
-| Barcode | `Código de Barras` | Deferred; needs barcode type/ETQ samples |
+| Barcode | `Código de Barras`; type `7`; `bc_*` runtime | Real legacy object; native support later, ETQ import blocked by missing barcode sample |
 | Figure/image | `Figura`, `btnImage` | Deferred; controlled samples needed |
 | Mapa risco figure | `Figura`, `btnMapaRisc` | Deferred; domain-specific and not decoded |
 | OLE object | `Ole`, `btnOle` | Unsupported initially |
@@ -146,12 +147,30 @@ Reverse evidence confirms the object model has a runtime type byte at object off
 | `0`, `1`, `2`, `3` | Shared handler via `FUN_004bb77c` | Basic vector/text-like objects | Low without more samples |
 | `4`, `5`, `11` | Handler via `FUN_004bf068` | Text/rich/artistic text family likely | Medium for visible text only through current scanner |
 | `6` | Handler via `FUN_004bd71c` | Bitmap/DIB-style figure path | Low; controlled samples needed |
-| `7` | Handler via `FUN_004befdc` | Barcode or specialized object likely | Low; controlled samples needed |
+| `7` | Handler via `FUN_004befdc`; configured by `FUN_004bea88`; rendered through `bc_*` calls | Barcode | Medium-high for runtime behavior; ETQ bytes still unknown |
 | `8` | Handler via `FUN_004bb77c` using different vtable pointer | Alternate object type | Low |
 | `9` | Handler via `FUN_004c066c`, OLE wrapper initialized | OLE-backed figure/image | Low; unsupported initially |
 | `10` | Handler via `FUN_004bb77c` using another vtable pointer | File-managed/special figure candidate | Low |
 
 The current ETQ scanner intentionally bypasses this full object graph and only validates common text and embedded Aldus WMF records. That is the right safety posture for a new implementation.
+
+### Barcode Object Evidence
+
+Barcode is no longer just a toolbar assumption. The decoded UI has `btnBarcode` with hint `Código de Barras`, and the decompiled runtime maps barcode to object type `7`.
+
+Known barcode function chain:
+
+| Function | Role |
+|---|---|
+| `FUN_004b5d8c` | Creates/loads object type `7`, assigns handler from `FUN_004befdc`, and calls `FUN_004bea88` |
+| `FUN_004ba3e0` | Generic object-handler switch; case `7` constructs the barcode handler |
+| `FUN_004befdc` | Initializes barcode handler defaults, including likely height percent `100`, orientation `0`, and size/module scale `2.0` |
+| `FUN_004bea88` | Applies barcode code string, type index, orientation, and helper state |
+| `FUN_004b3664` | Creates low-level barcode helper and calls `bc_CreateBarCode` |
+| `FUN_004b3830` | Render path: calls `bc_HeightPercent`, `bc_Type`, `bc_Rotate`, `bc_Size`, `bc_Code`, then `bc_Draw` on an HDC |
+| `FUN_004c3a4c` | Applies barcode properties from the properties UI to the selected object |
+
+Current limitation: there is no `.ETQ` sample containing a barcode. Therefore, old barcode import/export bytes are not known. Barcode should remain a documented legacy feature and a future native object, not an MVP ETQ-import promise.
 
 ## Zoom And View Features
 

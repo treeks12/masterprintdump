@@ -12,6 +12,7 @@ Status summary:
 | Object order / chain | Medium | `nextX/nextY` behavior understood enough to avoid corruption, but duplicate keys force file-offset fallback |
 | RTF text import | Medium | Plain display text and raw RTF preserved; full RichEdit layout is not reconstructed |
 | ETQ writing | Low / unsafe | Only no-op copy and narrow same-length/position patch experiments exist |
+| Barcode objects | Runtime known / ETQ bytes unknown | MasterPrint has a real type-7 barcode object, but no barcode `.ETQ` sample exists |
 | Non-text/WMF objects | Unknown | Barcode/OLE/table/mapa-risco/custom objects are not decoded |
 
 Important conclusion: treat `.ETQ` as an import/reference format. Do not make it the native source of truth. The new program should import supported objects into native JSON and keep unknown bytes only for diagnostics.
@@ -667,6 +668,41 @@ Recommended importer ordering:
 ```
 
 Do not deduplicate objects by text, symbol name, geometry, or chain key.
+
+## Barcode Objects
+
+Current ETQ status: not implemented and not proven by samples.
+
+MasterPrint/CadMapa has a real barcode object path, documented in `docs\masterprint-barcode-research.md`. The visible toolbar has `btnBarcode` / `Código de Barras`, and reverse evidence maps it to runtime object type `7` with a `bc_*` drawing path.
+
+Known runtime evidence:
+
+| Function | Evidence |
+|---|---|
+| `FUN_004b5d8c` | Creates object type `7` and calls `FUN_004bea88` |
+| `FUN_004ba3e0` | Generic handler switch case `7` constructs barcode handler `FUN_004befdc` |
+| `FUN_004befdc` | Initializes barcode handler defaults |
+| `FUN_004bea88` | Applies barcode code string, type index, orientation, and helper state |
+| `FUN_004b3830` | Calls `bc_HeightPercent`, `bc_Type`, `bc_Rotate`, `bc_Size`, `bc_Code`, and `bc_Draw` |
+
+Known limitation:
+
+```text
+There is currently no .ETQ file with a barcode object.
+```
+
+Therefore, do not implement barcode ETQ import by guessing. Without a controlled sample, the following remain unknown:
+
+| Unknown | Why it matters |
+|---|---|
+| Outer ETQ object envelope | Needed to detect barcode records safely |
+| Serialized barcode code string | Needed to import value text |
+| Serialized barcode type/symbology | Needed to render the same barcode |
+| Serialized rotation/height/size values | Needed to match placement and output |
+| Human-readable text setting | Needed to match visual output |
+| Check-digit behavior | Needed to avoid wrong barcode values |
+
+Safe importer behavior: if future scanner logic suspects a barcode object, preserve it as unsupported diagnostics until at least one controlled barcode `.ETQ` with screenshot/property notes exists.
 
 ## Photo, Logo, Raster, and OLE Objects
 

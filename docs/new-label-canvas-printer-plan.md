@@ -62,6 +62,7 @@ Do not build this as a web-based desktop app. Electron, Wails, browser canvas, a
 | ETQ report | `docs\etq-format-report.md` | Detailed read-only ETQ import structure, confidence levels, edge cases, and C# porting notes |
 | Legacy feature inventory | `docs\masterprint-cadmapa-feature-inventory.md` | Old MasterPrint/CadMapa feature checklist for support and migration scoping |
 | MasterPrint story/function map | `docs\masterprint-software-story-and-functions.md` | Narrative of what the old software was plus UI/reverse function explanations |
+| Barcode research | `docs\masterprint-barcode-research.md` | Barcode UI/type-7/runtime evidence and explicit ETQ sample gap |
 | Web research | LNT sellers and textile-label references | Confirms commercial LNT sizes and ABNT/ISO 3758 requirement |
 
 ABNT/Inmetro research notes:
@@ -413,6 +414,8 @@ photo-jpg-lnt2.ETQ + original JPG + screenshot, if MasterPrint accepts JPG
 ```
 
 ETQ writing is explicitly not required.
+
+Barcode note: MasterPrint/CadMapa had a real barcode object (`btnBarcode`, runtime type `7`, `bc_*` render path), but there is no barcode `.ETQ` sample. Native barcode creation can be designed later, but legacy barcode import must wait for controlled samples with screenshots and visible property values.
 
 ## Technical Architecture
 
